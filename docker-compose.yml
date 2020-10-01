@@ -1,11 +1,14 @@
 version: "2"
 services:
   app:
-    build: ./app
+    image: webapp-flask
+    build:
+      context: ./app
+      dockerfile: Dockerfile
     links:
       - db
-    ports:
-      - "5000:5000"
+    volumes:
+      - "./:/app"
 
   db:
     image: mysql:5.7
@@ -15,3 +18,13 @@ services:
       MYSQL_ROOT_PASSWORD: root
     volumes:
       - ./db:/docker-entrypoint-initdb.d/:ro
+
+  nginx:
+    image: webapp-nginx
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - 56734:80
+    depends_on:
+      - flask
