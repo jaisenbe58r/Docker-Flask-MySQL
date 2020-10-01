@@ -36,6 +36,6 @@ def index():
 
 
 
-# @app.route('/db')
-# def index() -> str:
-#     return json.dumps({'favorite_colors': favorite_colors()})
+@app.route('/db')
+def index_db() -> str:
+    return json.dumps({'favorite_colors': favorite_colors()})
