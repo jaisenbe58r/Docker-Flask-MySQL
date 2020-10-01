@@ -1,27 +1,28 @@
-version: '3'
-services:
-  flask:
-    image: webapp-flask-w
-    build:
-      context: .
-      dockerfile: Dockerfile-flask
-    volumes:
-      - "./:/app"
-  nginx:
-    image: webapp-nginx-w
-    build:
-      context: .
-      dockerfile: Dockerfile-nginx
-    ports:
-      - 56734:80
-    depends_on:
-      - flask
+version: "3.7"
 
-  db:
-    image: mysql:5.7
-    ports:
-      - "32000:3306"
+services:
+
+  flask:
+    build: ./flask
+    container_name: flask
+    restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root
-    volumes:
-      - ./db:/docker-entrypoint-initdb.d/:ro
+      - APP_NAME=MyFlaskApp
+    expose:
+      - 8080
+
+  nginx:
+    build: ./nginx
+    container_name: nginx
+    restart: always
+    ports:
+      - "80:80"
+
+  # db:
+  #   image: mysql:5.7
+  #   ports:
+  #     - "32000:3306"
+  #   environment:
+  #     MYSQL_ROOT_PASSWORD: root
+  #   volumes:
+  #     - ./db:/docker-entrypoint-initdb.d/:ro
