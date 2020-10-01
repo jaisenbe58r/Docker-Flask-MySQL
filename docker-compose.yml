@@ -1,7 +1,7 @@
 version: '3'
 services:
   flask:
-    image: webapp-flask
+    image: webapp-flask-w
     build:
       context: ./app
       dockerfile: Dockerfile
@@ -9,7 +9,7 @@ services:
       - "./:/app"
 
   nginx:
-    image: webapp-nginx
+    image: webapp-nginx-w
     build:
       context: ./web
       dockerfile: Dockerfile
