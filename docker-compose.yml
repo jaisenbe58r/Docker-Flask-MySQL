@@ -16,7 +16,7 @@ services:
     container_name: nginx
     restart: always
     ports:
-      - "80:80"
+      - "8003:80"
 
   # db:
   #   image: mysql:5.7
