@@ -1,18 +1,17 @@
 version: '3'
 services:
   flask:
-    image: webapp-flask-w
-    build:
-      context: ./app
-      dockerfile: Dockerfile
-    volumes:
-      - "./:/app"
-
-  nginx:
-    image: webapp-nginx-w
+    image: webapp-flask
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile-flask
+    volumes:
+      - "./:/app"
+  nginx:
+    image: webapp-nginx
+    build:
+      context: .
+      dockerfile: Dockerfile-nginx
     ports:
       - 56734:80
     depends_on:
