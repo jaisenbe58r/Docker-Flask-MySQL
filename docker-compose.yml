@@ -11,7 +11,7 @@ services:
   nginx:
     image: webapp-nginx-w
     build:
-      context: ./web
+      context: .
       dockerfile: Dockerfile
     ports:
       - 56734:80

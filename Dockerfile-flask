@@ -22,5 +22,5 @@ RUN pip install -r requirements.txt
 COPY . .
 # Finally, we run uWSGI with the ini file we
 # created earlier
-CMD [ "uwsgi", "--ini", "../web/app.ini" ]
+CMD [ "uwsgi", "--ini", "app/app.ini" ]
 # CMD [ "python", "app.py"]
