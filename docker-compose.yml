@@ -1,14 +1,14 @@
 version: '3'
 services:
   flask:
-    image: webapp-flask
+    image: webapp-flask-w
     build:
       context: .
       dockerfile: Dockerfile-flask
     volumes:
       - "./:/app"
   nginx:
-    image: webapp-nginx
+    image: webapp-nginx-w
     build:
       context: .
       dockerfile: Dockerfile-nginx
