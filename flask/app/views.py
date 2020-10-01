@@ -1,6 +1,6 @@
-# from typing import List, Dict
-# import mysql.connector
-# import json
+from typing import List, Dict
+import mysql.connector
+import json
 import os
 
 from app import app
