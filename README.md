@@ -1,26 +1,51 @@
-# Código para crear una aplicación Docker con Flask y tutorial de MySQL
+# Código para crear una aplicación Docker con Flask y MySQL
 
- Basado en [blog post about creating a flask-mysql app with docker](https://stavshamir.github.io/python/dockerizing-a-flask-mysql-app-with-docker-compose/)
-
+ Basado en:
+ - [Blog post about creating a flask-mysql app with docker](https://stavshamir.github.io/python/dockerizing-a-flask-mysql-app-with-docker-compose/)
+- [Building a Flask app with Docker | Learning Flask Ep. 24](https://pythonise.com/series/learning-flask/building-a-flask-app-with-docker-compose)
 
 En este Post vamos a tratar de tomar una aplicación web simple existente basada en ```Flask``` y ```MySQL``` y desplegarla con ```Docker``` y ```docker-compose``` en ```Digital Ocean```.
 
 Se considera una mejor práctica que un contenedor tenga solo una responsabilidad y un proceso, por lo que para nuestra aplicación necesitaremos al menos dos contenedores: uno para ejecutar la aplicación en sí y otro para ejecutar la base de datos. Coordinaremos estos dos contenedores con ```docker-compose```. 
 
-Todo el código utilizado en este Post está disponible aquí:
+Todo el código utilizado en este Post está disponible en el siguiente repositorio:
 
 [jaisenbe58r/Docker-Flask-MySQL](https://github.com/jaisenbe58r/Docker-Flask-MySQL)
 
- Comenzamos con el siguiente diseño del proyecto:
+Comenzamos con el siguiente diseño del proyecto:
 ```
 Proyect/
-├── app
-│   └── app.py
-└── db
-    └── init.sql
+├── db
+│    └── init.sql
+├── flask
+│    ├── app
+│    │   ├── __init__.py
+│    │   └── view.py
+│    ├── .dockerignore
+│    ├── app.ini
+│    ├── Dockerfile
+│    ├── requirements.txt
+│    └── run.py
+├── nginx
+│    ├── Dockerfile
+│    └── nginx.conf
+├── .gitignore
+├── docker-compose.yml
+├── README.md
+└── start.sh
+```
+```
+Proyect/
+├── db
+│   └── init.sql
+└── flask
+    ├── app
+    │   ├── __init__.py
+    │   └── view.py
+    └── run.py
 ```
 
-- ```app.py```: contiene la aplicación Flask que se conecta a la base de datos y expone un punto final de la API REST
+- ```flask/```: contiene la aplicación Flask que se conecta a la base de datos y expone un punto final de la API REST
 - ```init.sql```: un script SQL para inicializar la base de datos antes de que se ejecute la aplicación por primera vez.
 
 ### Creando una imagen de Docker para nuestra aplicación.
@@ -29,7 +54,8 @@ Necesitamos crear un ```Dockerfile``` en el directorio de la aplicación, este a
 
 ```Dockerfile
 # Dockerfile-flask
-#  Python 3 image
+# We simply inherit the Python 3 image. This image does
+# not particularly care what OS runs underneath
 FROM python:3
 RUN apt -qq -y update \
 	&& apt -qq -y upgrade
@@ -41,7 +67,7 @@ ENV APP /app
 RUN mkdir $APP
 WORKDIR $APP
 # Expose the port uWSGI will listen on
-EXPOSE 56734
+# EXPOSE 56734
 # Copy the requirements file in order to install
 # Python dependencies
 COPY requirements.txt .
@@ -51,18 +77,18 @@ RUN pip install -r requirements.txt
 COPY . .
 # Finally, we run uWSGI with the ini file we
 # created earlier
-CMD [ "uwsgi", "--ini", "app.ini" ]
+CMD [ "uwsgi", "app.ini" ]
 ```
 
 Lo que hace esto es:
-- la imagen de Docker se creará a partir de una imagen existente, ```python:3```, correspondiente a una imagen ligera de _python3_.
-- seleccionar el puerto de trabajo, en este caso el ```56734```, primero asegúrese de disponer de un puerto abierto para usarlo en la configuración. Para verificar si hay un puerto libre, ejecute el siguiente comando:
+- La imagen de Docker se creará a partir de una imagen existente, ```python:3```, correspondiente a una imagen ligera de _python3_.
+- Seleccionar el puerto de trabajo, en este caso el ```56734```, primero asegúrese de disponer de un puerto abierto para usarlo en la configuración. Para verificar si hay un puerto libre, ejecute el siguiente comando:
 
     ```cmd
     sudo nc localhost 56734 < /dev/null; echo $?
     ```
 
-    Si el resultado del comando anterior es ```1```, el puerto estará libre y podrá utilizarse. De lo contrario, deberá seleccionar un puerto diferente y repetir el procedimiento.
+    _Si el resultado del comando anterior es ```1```, el puerto estará libre y podrá utilizarse. De lo contrario, deberá seleccionar un puerto diferente y repetir el procedimiento._
 
 - Se copia el archivo ```requirements.txt``` al contenedor para que pueda ejecutarse y luego se analiza el archivo ```requirements.txt``` para instalar las dependencias especificadas. También copiaremos todo el directorio de trabajo del repositorio dentro de la imagen para posteriormente compartarlo como volumen externo.
 
@@ -70,55 +96,69 @@ Lo que hace esto es:
 
 Necesitamos que nuestras dependencias (```Flask``` y ```mysql-connector```) se instalen y entreguen con la imagen, por lo que debemos crear el archivo ```requirements.txt``` antes mencionado:
 ```
-Flask
+Flask==1.0.2
+uWSGI==2.0.17.1
 mysql-connector
+typing
 ```
 
-En el caso de la imagen de MySQL, no hará falta crear un ```Dockerfile```puesto que utilizaremos la imagen descargada directamente del ```Docker Hub```.
+En el caso de la imagen de MySQL, no hará falta crear un ```Dockerfile``` puesto que utilizaremos la imagen descargada directamente del ```Docker Hub```.
 
 
 El archivo ```app.ini``` contendrá las configuraciones de uWSGI para nuestra aplicación. uWSGI es una opción de implementación para Nginx que es tanto un protocolo como un servidor de aplicaciones. El servidor de aplicaciones puede proporcionar los protocolos uWSGI, FastCGI y HTTP.
 
 ```ini
 [uwsgi]
-protocol = uwsgi
-; This is the name of our Python file
-; minus the file extension
-module = app
+wsgi-file = run.py
 ; This is the name of the variable
 ; in our script that will be called
 callable = app
-master = true
-; Set uWSGI to start up 5 workers
-processes = 5
-; We use the port 56734 which we will
+; We use the port 8080 which we will
 ; then expose on our Dockerfile
-socket = 0.0.0.0:56734
+socket = :8080
+; Set uWSGI to start up 5 workers
+processes = 4
+threads = 2
+master = true
+chmod-socket = 660
 vacuum = true
 die-on-term = true
 ```
 
-Este código define el módulo desde el que se proporcionará la aplicación de Flask, en este caso es el archivo ```app.py```. La opción _callable_ indica a uWSGI que use la instancia de app exportada por la aplicación principal. La opción master permite que su aplicación siga ejecutándose, de modo que haya poco tiempo de inactividad incluso cuando se vuelva a cargar toda la aplicación.
+Este código define el módulo desde el que se proporcionará la aplicación de Flask, en este caso es el archivo ```run.py```. La opción _callable_ indica a uWSGI que use la instancia de app exportada por la aplicación principal. La opción master permite que su aplicación siga ejecutándose, de modo que haya poco tiempo de inactividad incluso cuando se vuelva a cargar toda la aplicación.
 
+Con las integraciones comentadas, el directorio del proyecto quedaría de la seguiente manera:
 
+```
+Proyect/
+├── db
+│    └── init.sql
+├── flask
+    ├── app
+    │   ├── __init__.py
+    │   └── view.py
+    ├── .dockerignore
+    ├── app.ini
+    ├── Dockerfile
+    ├── requirements.txt
+    └── run.py
+```
 
 ### Construcción imagen de Nginx en Docker
 
-Antes de implementar la construcción de la imagen del contenedor Nginx, crearemos nuestro archivo de configuración que le dirá a Nginx cómo enrutar el tráfico a uWSGI en nuestro otro contenedor. El archivo ```app.conf``` reemplazará el ```/etc/nginx/conf.d/default.conf``` que el contenedor Nginx incluye implícitamente. [Lea más sobre los archivos conf de Nginx aquí.](http://nginx.org/en/docs/beginners_guide.html)
+Antes de implementar la construcción de la imagen del contenedor Nginx, crearemos nuestro archivo de configuración que le dirá a Nginx cómo enrutar el tráfico a uWSGI en nuestro otro contenedor. El archivo ```nginx.conf``` reemplazará el ```/etc/nginx/conf.d/default.conf``` que el contenedor Nginx incluye implícitamente. [Lea más sobre los archivos conf de Nginx aquí.](http://nginx.org/en/docs/beginners_guide.html)
 
 ```conf
 server {
     listen 80;
-    root /usr/share/nginx/html;
-    location / { try_files $uri @app; }
-    location @app {
+    location / {
         include uwsgi_params;
-        uwsgi_pass flask:56734;
+        uwsgi_pass flask:8080;
     }
 }
 ```
 
-La línea se uwsgi_pass ```flask:56734``` está utilizando flask como host para enrutar el tráfico. Esto se debe a que configuraremos ```docker-compose``` para conectar nuestros contenedores Flask y Nginx a través del ```flask``` como nombre de host.
+La línea se uwsgi_pass ```flask:8080``` está utilizando flask como host para enrutar el tráfico. Esto se debe a que configuraremos ```docker-compose``` para conectar nuestros contenedores Flask y Nginx a través del ```flask``` como nombre de host.
 
 
 Nuestro Dockerfile para Nginx simplemente heredará la última imagen de [Nginx del registro de Docker](https://hub.docker.com/_/nginx/), eliminará el archivo de configuración predeterminado y agregará el archivo de configuración que acabamos de crear durante la compilación. Nombraremos el archivo ```Dockerfile-nginx```.
@@ -127,13 +167,32 @@ Nuestro Dockerfile para Nginx simplemente heredará la última imagen de [Nginx 
 # Dockerfile-nginx
 FROM nginx:latest
 # Nginx will listen on this port
-EXPOSE 80
+# EXPOSE 80
 # Remove the default config file that
 # /etc/nginx/nginx.conf includes
 RUN rm /etc/nginx/conf.d/default.conf
 # We copy the requirements file in order to install
 # Python dependencies
-COPY app.conf /etc/nginx/conf.d
+COPY nginx.conf /etc/nginx/conf.d/
+```
+
+Con ello el directorio del proyecta queda así:
+```
+Proyect/
+├── db
+│    └── init.sql
+├── flask
+│    ├── app
+│    │   ├── __init__.py
+│    │   └── view.py
+│    ├── .dockerignore
+│    ├── app.ini
+│    ├── Dockerfile
+│    ├── requirements.txt
+│    └── run.py
+└── nginx
+     ├── Dockerfile
+     └── nginx.conf
 ```
 
 ### Creando el orquestador de contenedores docker-compose.yml
