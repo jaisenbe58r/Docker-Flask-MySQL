@@ -1,10 +1,10 @@
-# Código para crear una aplicación Docker con Flask y MySQL
+# Código para crear una aplicación Docker con Flask, MySQL y Nginx, con despliegue en Digital Ocean con Docker-compose.
 
  Basado en:
  - [Blog post about creating a flask-mysql app with docker](https://stavshamir.github.io/python/dockerizing-a-flask-mysql-app-with-docker-compose/)
 - [Building a Flask app with Docker | Learning Flask Ep. 24](https://pythonise.com/series/learning-flask/building-a-flask-app-with-docker-compose)
 
-En este Post vamos a tratar de tomar una aplicación web simple existente basada en ```Flask``` y ```MySQL``` y desplegarla con ```Docker``` y ```docker-compose``` en ```Digital Ocean```.
+En este _Post_ vamos a tratar de tomar una aplicación web simple existente basada en ```Flask``` y ```MySQL``` y desplegarla con ```Docker``` y ```docker-compose``` en ```Digital Ocean```.
 
 Se considera una mejor práctica que un contenedor tenga solo una responsabilidad y un proceso, por lo que para nuestra aplicación necesitaremos al menos dos contenedores: uno para ejecutar la aplicación en sí y otro para ejecutar la base de datos. Coordinaremos estos dos contenedores con ```docker-compose```. 
 
@@ -13,27 +13,6 @@ Todo el código utilizado en este Post está disponible en el siguiente reposito
 [jaisenbe58r/Docker-Flask-MySQL](https://github.com/jaisenbe58r/Docker-Flask-MySQL)
 
 Comenzamos con el siguiente diseño del proyecto:
-```
-Proyect/
-├── db
-│    └── init.sql
-├── flask
-│    ├── app
-│    │   ├── __init__.py
-│    │   └── view.py
-│    ├── .dockerignore
-│    ├── app.ini
-│    ├── Dockerfile
-│    ├── requirements.txt
-│    └── run.py
-├── nginx
-│    ├── Dockerfile
-│    └── nginx.conf
-├── .gitignore
-├── docker-compose.yml
-├── README.md
-└── start.sh
-```
 ```
 Proyect/
 ├── db
@@ -199,19 +178,21 @@ Proyect/
 
 Se crea el archivo ```docker-compose.yml``` en el directorio raíz de nuestro proyecto:
 ```yml
-version: "2"
+version: "3.7"
 services:
-  app:
-    build: ./app
-    links:
-      - db
-    ports:
-      - "5000:5000"
+  flask:
+    build: ./flask
+    container_name: flask
+    restart: always
+    environment:
+      - APP_NAME=MyFlaskApp
+    expose:
+      - 8080
 ```
 Estamos utilizando dos servicios, uno es un contenedor que expone la API (Flask) y otro contiene la base de datos MySQL (db).
 
-- ```build```: especifica el directorio que contiene el Dockerfile que contiene las instrucciones para construir este servicio
-- ```links```: vincula este servicio a otro contenedor. Esto también nos permitirá usar el nombre del servicio en lugar de tener que buscar la ip del contenedor de la base de datos, y expresar una dependencia que determinará el orden de inicio del contenedor.
+- ```build```: especifica el directorio que contiene el Dockerfile que contiene las instrucciones para construir este servicio.
+- ```environment```: Agregación de variables de entorno. La variable especificada la utilizaremos en la aplicación Flask para mostrar un mensaje desde la API.
 - ```ports```: asignación de <Host>: <Container> puertos.
 ```yml
   db:
@@ -228,7 +209,7 @@ Estamos utilizando dos servicios, uno es un contenedor que expone la API (Flask)
 - ```ports```: Como ya tengo una instancia de mysql en ejecución en mi host usando este puerto, lo estoy mapeando a uno diferente. 
 - ```volumes```: Dado que queremos que el contenedor se inicialice con nuestro esquema, conectamos el directorio que contiene nuestro script ```init.sql``` al punto de entrada para este contenedor, que según la especificación de la imagen ejecuta todos los scripts ```.sql``` en el directorio dado.
 
-A continuación se muestra el código que se conecta a la base de datos (app.py):
+A continuación se muestra el código que se conecta a la base de datos (app/views.py):
 ```python
 config = {
         'user': 'root',
@@ -242,72 +223,56 @@ connection = mysql.connector.connect(**config)
 
  Se conecta como ```root``` con la contraseña configurada en el archivo ```docker-compose```. Observe que definimos explícitamente el host (que es localhost por defecto) ya que el servicio SQL está en un contenedor diferente al que ejecuta este código. Podemos (y debemos) usar el nombre 'db' ya que este es el nombre del servicio que definimos y vinculamos anteriormente. El puerto es ```3306``` y no ```32000``` ya que este código no se está ejecutando en el host.
 
-
-```yml
-version: '3'
-services:
-  flask:
-    image: webapp-flask
-    build:
-      context: .
-      dockerfile: Dockerfile-flask
-    volumes:
-      - "./:/app"
-  nginx:
-    image: webapp-nginx
-    build:
-      context: .
-      dockerfile: Dockerfile-nginx
-    ports:
-      - 56734:80
-    depends_on:
-      - flask
-```
-
-Las claves debajo ```services:``` definen los nombres de cada uno de nuestros servicios, contenedores Docker. De ahí, flask y nginx sean los nombres de nuestros dos contenedores.
-
-```yml
-imagen: webapp-flask
-```
-
-Esta línea especifica qué nombre tendrá nuestra imagen después de crearla. ```docker-compose``` construirá la imagen la primera vez que la lancemos y mantendrá un registro del nombre para todos los lanzamientos futuros.
-
-```yml
-build:
-  context: .
-  dockerfile: Dockerfile-flask
-```
-
-```context``` le dice al motor de Docker que solo use archivos en el directorio actual para construir la imagen. En segundo lugar ```dockerfile``` le está diciendo al motor que busque el archivo ```Dockerfile-flask``` para construir la imagen de flask.
-
-```yml
-  volumes:
-  - "./:/app"
-```
-
-Aquí simplemente estamos diciendo a ```docker-compose``` que monte nuestra carpeta actual en el directorio ```/app``` en el contenedor cuando se activa. De esta manera, a medida que hacemos cambios en la aplicación, no tendremos que seguir construyendo la imagen a menos que sea un cambio importante, como una dependencia de un módulo de software. En este caso en el ```Dockerfile```de la imagen de flask ya habíamos preparado este directorio de trabajo.
-
 Para el servicio ```nginx```, hay algunas cosas a tener en cuenta:
 
 ```yml
-ports: 
-  - 56734:80
+  nginx:
+    build: ./nginx
+    container_name: nginx
+    restart: always
+    ports:
+      - "8003:80"
 ```
 
-Esta pequeña sección le dice a ```docker-compose```que asigne el puerto ```56734``` de su máquina local al puerto ```80``` del contenedor Nginx (puerto que Nginx sirve por defecto).
+Esta pequeña sección le dice a ```docker-compose``` que asigne el puerto ```8003``` de su máquina local al puerto ```80``` del contenedor Nginx (puerto que Nginx sirve por defecto).
 
-```yml
-depends_on:
-  - flask
+Tal y como se ha implementado en el ```nginx.conf```, enrutamos el tráfico de Nginx a uWSGI y viceversa enviando datos a través del ```flask``` como nombre de host. Lo que hace esta sección es crear un nombre de host virtual ```flask``` en nuestro contenedor ```nginx``` y configurar la red para que podamos enrutar los datos entrantes a nuestra aplicación uWSGI que vive en un contenedor diferente. 
+
+## Desplegar Aplicación
+
+
+La secuencia de comandos ```start.sh``` es una secuencia de comandos de shell que nos permitirá ejecutar la construcción del ```docker-compose.yml```, para que los contenedores se ejecuten en modo background.
+
+```bash
+#!/bin/bash
+docker-compose up -d
 ```
 
-Tal y como se ha implementado en el ```app.conf```, enrutamos el tráfico de Nginx a uWSGI y viceversa enviando datos a través del ```flask``` como nombre de host. Lo que hace esta sección es crear un nombre de host virtual ```flask```en nuestro contenedor ```nginx``` y configurar la red para que podamos enrutar los datos entrantes a nuestra aplicación uWSGI que vive en un contenedor diferente. La ```depends_on``` directiva también espera hasta que el contenedor ```flask```esté en un estado funcional antes de lanzar el contenedor ```nginx```, lo que evita tener un escenario en el que Nginx falla si el host ```flask``` no responde.
+La primera línea se denomina _shebang_. Especifica que este es un archivo bash y se ejecutará como comandos. El indicador ```-d``` se utiliza para iniciar un contenedor en el modo de demonio, o como proceso en segundo plano.
+
+Para probar la creación de las imagen de Docker y los contenedores a partir de las imágenes resultantes, ejecute:
+
+```shell
+sudo bash start.sh
+```
+
+Una vez que la secuencia de comandos termine de ejecutarse, utilice el siguiente comando para enumerar todos los contenedores en ejecución:
+
+```shell
+sudo docker ps
+```
+
+Verá los contenedores en ejecución en ejecución sobre un mismo servicio. Ahora que se está ejecutando, visite la dirección IP pública de su servidor en el puerto especificado de su navegador http://```IP:8003```. o accediendo desde su dominio personal http://```your-domain:8003```.
+
+
+Ahora ya puede visitar su aplicación en http://```your-domain:8003``` desde un navegador externo al servidor para ver la la aplicación en ejecución.
+
 
 ### Actualizar la aplicación
 
 A veces, deberá realizar en la aplicación cambios que pueden incluir instalar nuevos requisitos, actualizar el contenedor de Docker o aplicar modificaciones vinculadas al HTML y a la lógica. A lo largo de esta sección, configurará touch-reload para realizar estos cambios sin necesidad de reiniciar el contenedor de Docker.
 
-```Autoreloading``` de Python controla el sistema completo de archivos en busca de cambios y actualiza la aplicación cuando detecta uno. No se aconseja el uso de _autoreloading_ en producción porque puede llegar a utilizar muchos recursos de forma muy rápida. En este paso, utilizará touch-reload para realizar la verificación en busca de cambios en un archivo concreto y volver a cargarlo cuando se actualice o sustituya.
+_Autoreloading_ de Python controla el sistema completo de archivos en busca de cambios y actualiza la aplicación cuando detecta uno. No se aconseja el uso de _autoreloading_ en producción porque puede llegar a utilizar muchos recursos de forma muy rápida. En este paso, utilizará touch-reload para realizar la verificación en busca de cambios en un archivo concreto y volver a cargarlo cuando se actualice o sustituya.
 
 Para implementar esto, abra el archivo uwsgi.ini e incorpore la siguiente linea de código:
 
@@ -317,7 +282,7 @@ touch-reload = /app/uwsgi.ini
 
 Esto especifica un archivo que se modificará para activar una recarga completa de la aplicación.
 
-A continuación, si hace una modificación en cualquier _template_ y abre la página de inicio de su aplicación en http://```your-domain:56733``` observará que los cambios no se reflejan. Esto se debe a que la condición para volver a cargar es un cambio en el archivo uwsgi.ini. Para volver a cargar la aplicación, use touch a fin de activar la condición:
+A continuación, si hace una modificación en cualquier _template_ y abre la página de inicio de su aplicación en http:// ```your-domain:8003``` observará que los cambios no se reflejan. Esto se debe a que la condición para volver a cargar es un cambio en el archivo uwsgi.ini. Para volver a cargar la aplicación, use touch a fin de activar la condición:
 
 ```shell
 sudo touch uwsgi.ini
