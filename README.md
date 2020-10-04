@@ -1,6 +1,6 @@
 # Aplicación web basada en Flask y MySQL, y despliegue con Docker y docker-compose en Digital Ocean
 
-![Portada](images/portada6.PNG)
+![Portada](images/portada6.png)
 
  Basado en:
  - [Blog post about creating a flask-mysql app with docker](https://stavshamir.github.io/python/dockerizing-a-flask-mysql-app-with-docker-compose/)
