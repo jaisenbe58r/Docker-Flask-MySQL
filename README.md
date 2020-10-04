@@ -1,10 +1,12 @@
-# Código para crear una aplicación Docker con Flask, MySQL y Nginx, con despliegue en Digital Ocean con Docker-compose.
+# Aplicación web basada en Flask y MySQL, y despliegue con Docker y docker-compose en Digital Ocean
+
+![Portada](images/portada6.PNG)
 
  Basado en:
  - [Blog post about creating a flask-mysql app with docker](https://stavshamir.github.io/python/dockerizing-a-flask-mysql-app-with-docker-compose/)
 - [Building a Flask app with Docker | Learning Flask Ep. 24](https://pythonise.com/series/learning-flask/building-a-flask-app-with-docker-compose)
 
-En este _Post_ vamos a tratar de tomar una aplicación web simple existente basada en ```Flask``` y ```MySQL``` y desplegarla con ```Docker``` y ```docker-compose``` en ```Digital Ocean```.
+En este _Post_ vamos a tratar de tomar una aplicación web simple existente basada en ```Flask``` y ```MySQL```, y desplegarla con ```Docker``` y ```docker-compose``` en ```Digital Ocean```.
 
 Se considera una mejor práctica que un contenedor tenga solo una responsabilidad y un proceso, por lo que para nuestra aplicación necesitaremos al menos dos contenedores: uno para ejecutar la aplicación en sí y otro para ejecutar la base de datos. Coordinaremos estos dos contenedores con ```docker-compose```. 
 
